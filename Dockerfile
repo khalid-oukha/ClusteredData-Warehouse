@@ -1,17 +1,27 @@
-FROM maven:3.9-amazoncorretto-17 AS build
+# Build stage
+FROM maven:3.9-eclipse-temurin-17-alpine AS build
 WORKDIR /app
 
+# Copy pom.xml and download dependencies
 COPY pom.xml .
-RUN mvn dependency:go-offline
+RUN mvn dependency:go-offline -B
 
-COPY src src
+# Copy source code and build
+COPY src ./src
 RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:17-jre-alpine
-WORKDIR /app
+# Runtime stage
+FROM tomcat:10.1-jdk17-temurin-jammy
+WORKDIR /usr/local/tomcat
 
-COPY --from=build /app/target/*.war warehouse.war
+# Remove default webapps
+RUN rm -rf webapps/*
 
-EXPOSE 8082
+# Copy WAR file from build stage
+COPY --from=build /app/target/*.war webapps/ROOT.war
 
-ENTRYPOINT ["java", "-jar", "/app/warehouse.war"]
+# Expose port
+EXPOSE 8080
+
+# Start Tomcat
+CMD ["catalina.sh", "run"]
